@@ -1,444 +1,437 @@
-# 🌾 FarmLink — Direct Farm-to-Retail Marketplace
+# 🌾 FarmLink
 
-A production-ready MERN stack platform connecting farmers directly with retailers, eliminating middlemen and creating fair, transparent commerce.
+> A direct farm-to-retail marketplace. Farmers list their produce, retailers browse and order it, and both sides track every order in real time, with no middlemen in between.
 
----
-
-## 📐 System Architecture
-
-```
-┌─────────────────────────────────────────────────────────┐
-│                     CLIENT (React)                       │
-│  ┌──────────┐  ┌──────────┐  ┌────────────────────────┐ │
-│  │  Redux   │  │ React    │  │ Socket.io Client       │ │
-│  │  Toolkit │  │ Router   │  │ (Real-time updates)    │ │
-│  └──────────┘  └──────────┘  └────────────────────────┘ │
-└───────────────────────┬─────────────────────────────────┘
-                        │ HTTP / WebSocket
-┌───────────────────────▼─────────────────────────────────┐
-│               BACKEND (Node.js + Express)                │
-│  ┌─────────────┐ ┌───────────┐ ┌──────────────────────┐ │
-│  │ JWT Auth    │ │ Socket.io │ │ RESTful API Routes   │ │
-│  │ Middleware  │ │ Server    │ │ /api/auth /api/crops │ │
-│  └─────────────┘ └───────────┘ │ /api/orders /api/... │ │
-│                                └──────────────────────┘ │
-│  ┌──────────────────────────────────────────────────────┐│
-│  │              MVC Controllers                         ││
-│  │  authController │ cropController │ orderController  ││
-│  └──────────────────────────────────────────────────────┘│
-└───────────────────────┬─────────────────────────────────┘
-                        │ Mongoose ODM
-┌───────────────────────▼─────────────────────────────────┐
-│                    MongoDB Atlas                          │
-│  Collections: Users │ Crops │ Orders │ Reviews          │
-│               Notifications                              │
-└─────────────────────────────────────────────────────────┘
-External Services:
-  ☁️  Cloudinary      → Image uploads & CDN
-  📧  Nodemailer      → Email notifications
-  💳  Stripe          → Payment processing (optional)
-  🔌  Socket.io       → Real-time order updates
-```
+FarmLink is a full-stack MERN application (MongoDB, Express, React, Node.js) with role-based accounts for farmers and retailers, an order lifecycle with status tracking, reviews, image uploads and live notifications over Socket.io.
 
 ---
 
-## 📁 Project Structure
+## Table of contents
+
+- [Features](#features)
+- [Tech stack](#tech-stack)
+- [Architecture](#architecture)
+- [Project structure](#project-structure)
+- [Getting started](#getting-started)
+- [Environment variables](#environment-variables)
+- [API reference](#api-reference)
+- [Real-time events](#real-time-events)
+- [Data models](#data-models)
+- [Deployment](#deployment)
+- [Security](#security)
+- [Current status and known gaps](#current-status-and-known-gaps)
+- [Roadmap](#roadmap)
+
+---
+
+## Features
+
+**For farmers**
+- Create, edit and delete crop listings with up to 5 images, pricing, units, minimum order quantity, harvest and expiry dates, grade, organic flag and shipping options
+- Dashboard with listing and sales statistics
+- Accept, reject, process, ship and deliver incoming orders
+- Reply to reviews
+
+**For retailers**
+- Search the marketplace and filter by category, city, state, price range, grade, unit and organic
+- Sort by newest, price or rating, with pagination
+- Place orders with a delivery address, and cancel while an order is pending or accepted
+- Dashboard with order and spending statistics
+- Review farmers and crops after delivery
+
+**Platform**
+- JWT authentication with farmer, retailer and admin roles
+- Forgot-password and reset-password by email
+- In-app notifications, pushed live over Socket.io
+- Order status history with a timestamp, note and author for every change
+- Cloudinary image uploads for crops and avatars
+- Admin endpoints for platform statistics and deactivating users
+
+---
+
+## Tech stack
+
+| Layer | Technology |
+| --- | --- |
+| Frontend | React 18, React Router 6, Redux Toolkit, Axios, react-hot-toast, date-fns |
+| Real-time | Socket.io (server and client) |
+| Backend | Node.js, Express 4 |
+| Database | MongoDB with Mongoose 8 |
+| Auth | JSON Web Tokens, bcryptjs |
+| Validation | express-validator and Mongoose validators |
+| Security | Helmet, CORS, express-rate-limit |
+| Uploads | Multer, Cloudinary |
+| Email | Nodemailer |
+| Payments | Stripe SDK (currently mocked, see [known gaps](#current-status-and-known-gaps)) |
+
+---
+
+## Architecture
 
 ```
-farmlink/
+┌──────────────────────────────────────────────────────┐
+│                    React client                       │
+│   Redux Toolkit · React Router · Socket.io client     │
+└───────────────────────┬──────────────────────────────┘
+                        │ HTTP (REST) / WebSocket
+┌───────────────────────▼──────────────────────────────┐
+│               Express + Socket.io server              │
+│   Helmet · CORS · rate limit · JWT auth middleware    │
+│   Routes → Controllers → Mongoose models              │
+└───────────────────────┬──────────────────────────────┘
+                        │ Mongoose
+┌───────────────────────▼──────────────────────────────┐
+│                       MongoDB                         │
+│   Users · Crops · Orders · Reviews · Notifications    │
+└──────────────────────────────────────────────────────┘
+
+External services:  Cloudinary (images) · SMTP (email) · Stripe (payments, optional)
+```
+
+---
+
+## Project structure
+
+```
+Farm_Link/
 ├── backend/
-│   ├── config/              # Database & cloud config
-│   ├── controllers/
-│   │   ├── authController.js
-│   │   ├── cropController.js
-│   │   └── orderController.js
-│   ├── middleware/
-│   │   ├── auth.js          # JWT protect & authorize
-│   │   └── errorHandler.js  # Global error handling
-│   ├── models/
-│   │   ├── User.js          # Farmer & Retailer schema
-│   │   ├── Crop.js          # Product listing schema
-│   │   ├── Order.js         # Order lifecycle schema
-│   │   ├── Review.js        # Ratings & reviews schema
-│   │   └── Notification.js  # In-app notifications
-│   ├── routes/
-│   │   ├── auth.js
-│   │   ├── crops.js
-│   │   ├── orders.js
-│   │   ├── reviews.js
-│   │   ├── users.js
-│   │   ├── notifications.js
-│   │   ├── uploads.js
-│   │   └── payments.js
-│   ├── utils/
-│   │   ├── socketHandlers.js # Real-time socket events
-│   │   ├── notificationHelper.js
-│   │   ├── email.js          # Nodemailer
-│   │   └── seeder.js         # Sample data seeder
-│   ├── server.js
-│   ├── package.json
-│   └── .env.example
-│
+│   ├── config/          # MongoDB and Cloudinary setup
+│   ├── controllers/     # auth, crop, order, review, notification, user
+│   ├── middleware/      # auth (protect/authorize), validation, uploads, error handler
+│   ├── models/          # User, Crop, Order, Review, Notification, Message
+│   ├── routes/          # auth, users, crops, orders, reviews, notifications, uploads, payments, messages
+│   ├── utils/           # email, logger, helpers, notification helper, socket handlers, seeder
+│   ├── server.js        # App entry point
+│   └── package.json
 └── frontend/
     ├── public/
     └── src/
-        ├── components/
-        │   └── common/
-        │       ├── Navbar.js
-        │       ├── Footer.js
-        │       ├── LoadingSpinner.js  # + StarRating, Badge, Modal
-        │       └── CropCard.js
-        ├── context/
-        │   └── SocketContext.js
-        ├── pages/
-        │   ├── HomePage.js
-        │   ├── LoginPage.js
-        │   ├── RegisterPage.js
-        │   ├── MarketplacePage.js
-        │   ├── CropDetailPage.js
-        │   ├── FarmerDashboard.js
-        │   ├── RetailerDashboard.js
-        │   ├── AddCropPage.js
-        │   ├── EditCropPage.js
-        │   ├── OrdersPage.js
-        │   ├── OrderDetailPage.js
-        │   ├── ProfilePage.js
-        │   └── NotFoundPage.js
-        ├── services/
-        │   └── api.js         # Axios + all API methods
-        ├── store.js            # Redux Toolkit store + slices
-        ├── App.js
-        ├── index.js
-        └── index.css
+        ├── components/  # common, auth, farmer and retailer components
+        ├── context/     # SocketContext
+        ├── hooks/       # useAuth, useCrops, useOrders, useNotifications, useUtils
+        ├── pages/       # Home, Marketplace, CropDetail, dashboards, Orders, Profile, auth pages
+        ├── services/    # api.js (Axios client)
+        ├── utils/       # constants, formatters, validators
+        ├── store.js     # Redux Toolkit store and slices
+        └── App.js       # Routes and route guards
 ```
 
 ---
 
-## 🗄️ MongoDB Schema Design
+## Getting started
 
-### User Schema
-```javascript
-{
-  name, email, password (hashed), role: ['farmer','retailer','admin'],
-  phone, avatar: { public_id, url },
-  location: { address, city, state, pincode, coordinates: { lat, lng } },
-  // Farmer fields:
-  farmName, farmSize, cropTypes[], farmingType, yearsOfExperience,
-  // Retailer fields:
-  businessName, businessType, gstNumber, preferredCrops[],
-  // Stats:
-  rating: { average, count }, totalTransactions, totalRevenue, totalSpent,
-  isVerified, isActive, socketId, lastSeen,
-  timestamps: true
-}
+### Prerequisites
+
+- Node.js 18 or later
+- A MongoDB instance (local or [MongoDB Atlas](https://www.mongodb.com/atlas))
+- A [Cloudinary](https://cloudinary.com) account for image uploads (optional for browsing, required for uploading images)
+- SMTP credentials for password-reset emails (optional)
+
+### 1. Clone the repository
+
+```bash
+git clone https://github.com/mithunm-63/Farm_Link.git
+cd Farm_Link
 ```
 
-### Crop Schema
-```javascript
-{
-  farmer: ObjectId(User), name, category, description,
-  images: [{ public_id, url, isMain }],
-  pricePerUnit, unit, minimumOrderQuantity,
-  availableQuantity, reservedQuantity,
-  harvestDate, expiryDate, grade, isOrganic, certifications[],
-  location: { address, city, state, pincode, coordinates },
-  status: ['active','inactive','sold_out','expired'],
-  rating: { average, count }, views, orderCount,
-  shippingAvailable, shippingCost, deliveryDays,
-  tags[], isFeatured,
-  timestamps: true
-}
+### 2. Set up the backend
+
+```bash
+cd backend
+npm install
 ```
 
-### Order Schema
-```javascript
-{
-  orderNumber (auto-generated: FL-timestamp-seq),
-  retailer: ObjectId(User), farmer: ObjectId(User), crop: ObjectId(Crop),
-  cropSnapshot: { name, category, pricePerUnit, unit, imageUrl },
-  quantity, pricePerUnit, subtotal, shippingCost, totalAmount,
-  status: ['pending','accepted','rejected','processing','shipped','delivered','cancelled','refunded'],
-  statusHistory: [{ status, timestamp, note, updatedBy }],
-  deliveryAddress: { name, phone, address, city, state, pincode },
-  expectedDeliveryDate, actualDeliveryDate, trackingNumber,
-  notes, rejectionReason,
-  payment: { method, status, transactionId, paidAt },
-  farmerReviewed, retailerReviewed,
-  timestamps: true
-}
+Create a `backend/.env` file (see [Environment variables](#environment-variables)). At minimum:
+
+```env
+MONGO_URI=mongodb://localhost:27017/farmlink
+JWT_SECRET=replace-with-a-long-random-string
+JWT_EXPIRE=7d
+CLIENT_URL=http://localhost:3000
 ```
 
-### Review Schema
-```javascript
-{
-  order, crop, reviewer, reviewee, reviewerRole,
-  rating (1-5), title, comment,
-  qualityRating, packagingRating, communicationRating,
-  images[], isVerified, helpfulVotes, reply: { text, repliedAt },
-  timestamps: true
-}
+Optionally seed sample data, then start the server:
+
+```bash
+npm run seed   # WARNING: clears existing data first
+npm run dev    # nodemon, auto-restarts on changes
 ```
+
+### 3. Set up the frontend
+
+```bash
+cd frontend
+npm install
+```
+
+Create a `frontend/.env` file:
+
+```env
+REACT_APP_API_URL=http://localhost:5000/api
+REACT_APP_SOCKET_URL=http://localhost:5000
+```
+
+```bash
+npm start
+```
+
+### 4. Open the app
+
+| Service | URL |
+| --- | --- |
+| Frontend | http://localhost:3000 |
+| Backend API | http://localhost:5000/api |
+| Health check | http://localhost:5000/health |
+
+### 5. Demo accounts (after seeding)
+
+| Role | Email | Password |
+| --- | --- | --- |
+| Farmer | `farmer1@farmlink.com` | `password123` |
+| Retailer | `retailer1@farmlink.com` | `password123` |
+
+The seeder also creates `farmer2`, `farmer3` and `retailer2` accounts with the same password. These are for local development only.
+
+> ⚠️ `npm run seed` deletes existing data before inserting the samples. Do not run it against a database you care about.
 
 ---
 
-## 🔌 API Routes Documentation
+## Environment variables
 
-### Auth Routes `/api/auth`
+### Backend (`backend/.env`)
+
+| Variable | Required | Description |
+| --- | --- | --- |
+| `MONGO_URI` | Yes | MongoDB connection string (defaults to `mongodb://localhost:27017/farmlink`) |
+| `JWT_SECRET` | Yes | Secret used to sign tokens. Use a long random value |
+| `JWT_EXPIRE` | Yes | Token lifetime, e.g. `7d` |
+| `CLIENT_URL` | Yes | Frontend origin, used for CORS, Socket.io and reset-password links (defaults to `http://localhost:3000`) |
+| `PORT` | No | Server port (defaults to `5000`) |
+| `NODE_ENV` | No | `development` enables request logging |
+| `CLOUDINARY_CLOUD_NAME` | For uploads | Cloudinary cloud name |
+| `CLOUDINARY_API_KEY` | For uploads | Cloudinary API key |
+| `CLOUDINARY_API_SECRET` | For uploads | Cloudinary API secret |
+| `SMTP_HOST` | For email | SMTP server host |
+| `SMTP_PORT` | For email | SMTP server port |
+| `SMTP_EMAIL` | For email | SMTP username |
+| `SMTP_PASSWORD` | For email | SMTP password |
+| `FROM_NAME` | No | Sender display name |
+| `FROM_EMAIL` | No | Sender address (falls back to `SMTP_EMAIL`) |
+| `STRIPE_SECRET_KEY` | No | Only needed once the real Stripe flow is enabled |
+
+### Frontend (`frontend/.env`)
+
+| Variable | Description |
+| --- | --- |
+| `REACT_APP_API_URL` | Backend API base URL, e.g. `http://localhost:5000/api` |
+| `REACT_APP_SOCKET_URL` | Backend origin for Socket.io, e.g. `http://localhost:5000` |
+
+Never commit `.env` files or real secrets.
+
+---
+
+## API reference
+
+Base URL: `/api`. Send the token as `Authorization: Bearer <token>` for private routes. Responses use the shape `{ success, ... }`.
+
+### Auth: `/api/auth`
+
 | Method | Endpoint | Access | Description |
-|--------|----------|--------|-------------|
-| POST | `/register` | Public | Register farmer/retailer |
-| POST | `/login` | Public | Login + JWT |
-| GET | `/me` | Private | Get current user |
+| --- | --- | --- | --- |
+| POST | `/register` | Public | Register a farmer or retailer |
+| POST | `/login` | Public | Log in and receive a JWT |
+| GET | `/me` | Private | Current user |
 | PUT | `/profile` | Private | Update profile |
 | PUT | `/change-password` | Private | Change password |
-| POST | `/forgot-password` | Public | Send reset email |
+| POST | `/forgot-password` | Public | Send a reset email |
 | PUT | `/reset-password/:token` | Public | Reset password |
 
-### Crops Routes `/api/crops`
-| Method | Endpoint | Access | Description |
-|--------|----------|--------|-------------|
-| GET | `/` | Public | Get all crops (filters, pagination, search) |
-| GET | `/featured` | Public | Get featured crops |
-| GET | `/my-listings` | Farmer | Get own listings |
-| GET | `/farmer-stats` | Farmer | Dashboard stats |
-| GET | `/:id` | Public | Get single crop |
-| POST | `/` | Farmer | Create listing |
-| PUT | `/:id` | Farmer/Admin | Update listing |
-| DELETE | `/:id` | Farmer/Admin | Delete listing |
+### Crops: `/api/crops`
 
-**Query Params for GET `/`:**
+| Method | Endpoint | Access | Description |
+| --- | --- | --- | --- |
+| GET | `/` | Public | List crops with filters, search and pagination |
+| GET | `/featured` | Public | Featured crops |
+| GET | `/my-listings` | Farmer | Your own listings |
+| GET | `/farmer-stats` | Farmer | Dashboard statistics |
+| GET | `/:id` | Public | Single crop |
+| POST | `/` | Farmer | Create a listing |
+| PUT | `/:id` | Farmer, Admin | Update a listing |
+| DELETE | `/:id` | Farmer, Admin | Delete a listing |
+
+Query parameters for `GET /api/crops`:
+
 ```
 ?search=tomato&category=vegetables&city=Mumbai&state=Maharashtra
 &minPrice=10&maxPrice=500&isOrganic=true&unit=kg&grade=A
-&page=1&limit=12&sort=-createdAt|pricePerUnit|-pricePerUnit|-rating
+&page=1&limit=12&sort=-createdAt | pricePerUnit | -pricePerUnit | -rating
 ```
 
-### Orders Routes `/api/orders`
-| Method | Endpoint | Access | Description |
-|--------|----------|--------|-------------|
-| POST | `/` | Retailer | Place order |
-| GET | `/` | Private | Get own orders |
-| GET | `/retailer-stats` | Retailer | Dashboard stats |
-| GET | `/:id` | Private | Get order detail |
-| PUT | `/:id/status` | Private | Update status |
+### Orders: `/api/orders`
 
-**Status Transitions:**
-- Farmer: `pending → accepted/rejected`, `accepted → processing/shipped`, `shipped → delivered`
-- Retailer: `pending/accepted → cancelled`
-
-### Reviews Routes `/api/reviews`
 | Method | Endpoint | Access | Description |
-|--------|----------|--------|-------------|
-| GET | `/` | Public | `?cropId=&userId=` |
-| POST | `/` | Private | Create review (delivered orders only) |
+| --- | --- | --- | --- |
+| POST | `/` | Retailer | Place an order |
+| GET | `/` | Private | Your orders |
+| GET | `/retailer-stats` | Retailer | Dashboard statistics |
+| GET | `/:id` | Private | Order detail (involved parties only) |
+| PUT | `/:id/status` | Private | Update order status |
 
-### Notifications Routes `/api/notifications`
-| Method | Endpoint | Access | Description |
-|--------|----------|--------|-------------|
-| GET | `/` | Private | Get notifications |
-| PUT | `/:id/read` | Private | Mark read |
-| PUT | `/read-all` | Private | Mark all read |
-| DELETE | `/:id` | Private | Delete |
+Order status flow:
 
-### Payments Routes `/api/payments`
+- Farmer: `pending → accepted | rejected`, `accepted → processing | shipped`, `shipped → delivered`
+- Retailer: `pending | accepted → cancelled`
+
+### Reviews: `/api/reviews`
+
 | Method | Endpoint | Access | Description |
-|--------|----------|--------|-------------|
-| POST | `/create-intent` | Retailer | Create Stripe payment intent |
-| POST | `/confirm` | Private | Confirm payment |
-| POST | `/webhook` | Public | Stripe webhook |
+| --- | --- | --- | --- |
+| GET | `/` | Public | List reviews (`?cropId=` or `?userId=`) |
+| POST | `/` | Private | Create a review (delivered orders only) |
+| PUT | `/:id/reply` | Private | Reply to a review |
+| PUT | `/:id/helpful` | Private | Mark a review as helpful |
+| DELETE | `/:id` | Private | Delete a review |
+
+### Notifications: `/api/notifications`
+
+| Method | Endpoint | Access | Description |
+| --- | --- | --- | --- |
+| GET | `/` | Private | List notifications |
+| GET | `/unread-count` | Private | Unread count |
+| PUT | `/read-all` | Private | Mark all as read |
+| PUT | `/:id/read` | Private | Mark one as read |
+| DELETE | `/clear-read` | Private | Delete all read notifications |
+| DELETE | `/:id` | Private | Delete one notification |
+
+### Users: `/api/users`
+
+| Method | Endpoint | Access | Description |
+| --- | --- | --- | --- |
+| GET | `/farmers` | Public | List farmers |
+| GET | `/search` | Public | Search users |
+| GET | `/:id` | Public | Public profile |
+| GET | `/retailers` | Farmer, Admin | List retailers |
+| PUT | `/avatar` | Private | Update avatar |
+| GET | `/admin/stats` | Admin | Platform statistics |
+| PUT | `/:id/deactivate` | Admin | Deactivate a user |
+
+### Uploads: `/api/uploads`
+
+| Method | Endpoint | Access | Description |
+| --- | --- | --- | --- |
+| POST | `/image` | Private | Upload one image (field `image`) |
+| POST | `/images` | Private | Upload up to 5 images (field `images`) |
+
+### Payments: `/api/payments`
+
+| Method | Endpoint | Access | Description |
+| --- | --- | --- | --- |
+| POST | `/create-intent` | Retailer | Create a payment intent (mock, see below) |
+| POST | `/confirm` | Private | Mark an order's payment as paid |
+| POST | `/webhook` | Public | Stripe webhook placeholder |
+
+### Health
+
+`GET /health` returns the API status, timestamp and environment.
 
 ---
 
-## ⚡ Socket.io Real-Time Events
+## Real-time events
 
-### Client → Server
+Socket.io shares the HTTP server and uses the same CORS origin (`CLIENT_URL`).
+
+**Client → server**
+
 ```javascript
-socket.emit('join', userId)      // Authenticate socket session
+socket.emit('join', userId)                    // join your private room
 socket.emit('typing', { roomId, userName })
 socket.emit('stop_typing', { roomId })
 ```
 
-### Server → Client
+**Server → client**
+
 ```javascript
-socket.on('notification', (notification) => {})  // New notification
+socket.on('notification', (notification) => {})
 socket.on('order_update', ({ orderNumber, status }) => {})
 socket.on('user_typing', ({ userName }) => {})
+socket.on('user_stop_typing', () => {})
 ```
 
 ---
 
-## 🚀 Setup & Local Development
+## Data models
 
-### Prerequisites
-- Node.js >= 18
-- MongoDB (local or Atlas)
-- npm or yarn
+| Model | Key fields |
+| --- | --- |
+| **User** | `name`, `email`, hashed `password`, `role` (`farmer`, `retailer`, `admin`), `phone`, `avatar`, `location`; farmer fields (`farmName`, `farmSize`, `cropTypes`, `farmingType`); retailer fields (`businessName`, `businessType`, `gstNumber`, `preferredCrops`); `rating`, `isVerified`, `isActive` |
+| **Crop** | `farmer`, `name`, `category`, `description`, `images`, `pricePerUnit`, `unit`, `minimumOrderQuantity`, `availableQuantity`, `harvestDate`, `expiryDate`, `grade`, `isOrganic`, `location`, `status` (`active`, `inactive`, `sold_out`, `expired`), `rating`, shipping fields |
+| **Order** | `orderNumber`, `retailer`, `farmer`, `crop`, `cropSnapshot`, `quantity`, `subtotal`, `shippingCost`, `totalAmount`, `status`, `statusHistory`, `deliveryAddress`, `payment`, review flags |
+| **Review** | `order`, `crop`, `reviewer`, `reviewee`, `rating` (1 to 5), `title`, `comment`, quality, packaging and communication ratings, `reply`, `helpfulVotes` |
+| **Notification** | In-app notifications delivered per user |
+| **Message** | Chat message schema (see [known gaps](#current-status-and-known-gaps)) |
 
-### 1. Clone the repository
-```bash
-git clone https://github.com/yourusername/farmlink.git
-cd farmlink
-```
-
-### 2. Backend Setup
-```bash
-cd backend
-npm install
-
-# Copy and configure environment variables
-cp .env.example .env
-# Edit .env with your values:
-#   MONGO_URI=mongodb://localhost:27017/farmlink
-#   JWT_SECRET=your_secret_here (min 32 chars)
-#   CLOUDINARY_* (for image uploads)
-#   SMTP_* (for emails)
-
-# Seed sample data (optional)
-npm run seed
-
-# Start development server
-npm run dev
-```
-
-### 3. Frontend Setup
-```bash
-cd frontend
-npm install
-
-# Copy and configure environment variables
-cp .env.example .env
-# REACT_APP_API_URL=http://localhost:5000/api
-# REACT_APP_SOCKET_URL=http://localhost:5000
-
-# Start development server
-npm start
-```
-
-### 4. Access the App
-- Frontend: http://localhost:3000
-- Backend API: http://localhost:5000/api
-- Health check: http://localhost:5000/health
-
-### 5. Demo Credentials (after seeding)
-```
-Farmer:   farmer1@farmlink.com  / password123
-Retailer: retailer1@farmlink.com / password123
-```
+Orders store a snapshot of the crop at order time, so later price changes do not alter past orders.
 
 ---
 
-## 🌐 Deployment Guide
+## Deployment
 
-### Option A: Vercel (Frontend) + Render (Backend)
+The app deploys as two pieces: the API (with MongoDB) and the static React build.
 
-**Backend on Render:**
-1. Create new Web Service on render.com
-2. Connect GitHub repo, set root directory to `backend/`
-3. Build: `npm install`, Start: `npm start`
-4. Add environment variables from `.env`
-5. Note the deployed URL (e.g. `https://farmlink-api.onrender.com`)
+**Backend (for example Render or Railway)**
+1. Create a web service with root directory `backend`.
+2. Build command `npm install`, start command `npm start`.
+3. Add the backend environment variables. Set `CLIENT_URL` to your deployed frontend URL.
+4. Use a hosted MongoDB such as Atlas for `MONGO_URI`.
 
-**Frontend on Vercel:**
-1. Import project on vercel.com
-2. Set root directory to `frontend/`
-3. Add environment variables:
-   - `REACT_APP_API_URL=https://farmlink-api.onrender.com/api`
-   - `REACT_APP_SOCKET_URL=https://farmlink-api.onrender.com`
-4. Deploy
+**Frontend (for example Vercel or Netlify)**
+1. Set the root directory to `frontend`, with build command `npm run build` and output directory `build`.
+2. Set `REACT_APP_API_URL` and `REACT_APP_SOCKET_URL` to the deployed backend URL.
 
-### Option B: AWS (Production Scale)
-
-```
-Frontend:  S3 + CloudFront CDN
-Backend:   EC2 (t3.medium) or ECS + ECR (Docker)
-Database:  MongoDB Atlas M10+ (VPC peered)
-Storage:   Cloudinary (images) / S3 (files)
-Emails:    AWS SES
-Payments:  Stripe
-CDN:       CloudFront
-Secrets:   AWS Secrets Manager
-CI/CD:     GitHub Actions → ECR → ECS
-```
-
-**Docker Compose (development):**
-```yaml
-version: '3'
-services:
-  mongo:
-    image: mongo:7
-    ports: ["27017:27017"]
-    volumes: [mongo_data:/data/db]
-  backend:
-    build: ./backend
-    ports: ["5000:5000"]
-    env_file: ./backend/.env
-    depends_on: [mongo]
-  frontend:
-    build: ./frontend
-    ports: ["3000:3000"]
-    environment:
-      - REACT_APP_API_URL=http://localhost:5000/api
-volumes:
-  mongo_data:
-```
-
-### Option C: Railway (Simplest)
-1. Connect GitHub on railway.app
-2. Create Mongo, Backend, Frontend services
-3. Set env vars, auto-deploys on push
+Because the server uses WebSockets, pick a host that supports long-lived connections for the backend.
 
 ---
 
-## 🔑 Key Technical Decisions
+## Security
 
-| Decision | Choice | Reason |
-|----------|--------|--------|
-| Auth | JWT (stateless) | Scales horizontally, no session storage needed |
-| State | Redux Toolkit | Complex shared state, dev tools support |
-| Real-time | Socket.io | Bi-directional, fallback polling, rooms |
-| Images | Cloudinary | CDN + transforms + free tier generosity |
-| Passwords | bcrypt (12 rounds) | Industry standard, slow by design |
-| API design | RESTful MVC | Clear separation, testable, familiar |
-| Pagination | Cursor-skip | Simple; upgrade to cursor-based at scale |
-| Rate limiting | express-rate-limit | 100 req/15min per IP |
-
----
-
-## 🛡️ Security Checklist
-
-- [x] Password hashing with bcrypt (12 rounds)
-- [x] JWT with configurable expiry
-- [x] Role-based access control (farmer/retailer/admin)
-- [x] Rate limiting on all API routes
-- [x] Helmet.js security headers
-- [x] CORS restricted to frontend domain
-- [x] Input validation with mongoose validators
-- [x] Password fields never returned in responses
-- [x] Environment variables for all secrets
-- [x] Owner-only crop editing/deletion
-- [x] Order access restricted to involved parties
+- Passwords hashed with bcrypt
+- Stateless JWT authentication with configurable expiry
+- Role-based access control (farmer, retailer, admin) on protected routes
+- Owner-only crop editing and order access limited to the farmer and retailer involved
+- Helmet security headers
+- CORS restricted to `CLIENT_URL`
+- Rate limiting on `/api/*`: 100 requests per 15 minutes per IP
+- Request validation with express-validator and Mongoose schemas
+- Secrets are read from environment variables
 
 ---
 
-## 🔮 Future Enhancements
+## Current status and known gaps
 
-1. **Chat System** — Socket.io rooms for farmer-retailer messaging
-2. **Geolocation** — MongoDB geospatial queries for nearby farmers
-3. **Push Notifications** — Firebase Cloud Messaging (FCM)
-4. **Analytics Dashboard** — Revenue charts, top crops, peak seasons
-5. **Subscription Model** — Premium listings, featured placement
-6. **Mobile App** — React Native sharing the API
-7. **AI Recommendations** — Crop suggestions based on purchase history
-8. **Bulk Import** — CSV upload for large farm inventories
-9. **Dispute Resolution** — Automated mediation workflow
-10. **Multi-language** — i18n for regional farmers
+- **Payments are mocked.** `POST /api/payments/create-intent` returns a demo client secret. The real Stripe call is present only as commented-out code, and `/webhook` is a placeholder. `/confirm` marks an order as paid without verifying with Stripe. Do not use this for real money until the Stripe flow is implemented and verified.
+- **Chat is not wired up yet.** A `Message` model, a `messages` route file and a chat widget exist, but the messages route is not mounted in `server.js`, so there are no `/api/messages` endpoints yet.
+- **No automated tests or CI** are included in the repository yet.
+- **No Docker setup or `.env.example` files** are included. Use the variable tables above.
 
 ---
 
-## 📄 License
+## Roadmap
 
-MIT License — Free to use for commercial and non-commercial projects.
+- [ ] Real Stripe payments with verified webhooks
+- [ ] Mount and finish farmer-retailer chat
+- [ ] Geospatial search for nearby farmers
+- [ ] Analytics dashboards (revenue, top crops, seasonality)
+- [ ] Automated tests and a CI pipeline
+- [ ] Dockerfile and Docker Compose for local development
+- [ ] Push notifications
+- [ ] Multi-language support
 
 ---
 
-*Built with ❤️ for India's 140M+ farming families*
+## Contributing
+
+Issues and pull requests are welcome. Please open an issue first for larger changes.
+
+## License
+
+No license file is currently included. The previous README stated MIT, so if that is your intent, add an MIT `LICENSE` file to make it effective.
